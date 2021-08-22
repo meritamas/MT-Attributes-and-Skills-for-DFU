@@ -128,14 +128,69 @@ namespace DaggerfallWorkshop.Game.Formulas
             return (int)Mathf.Floor((float)endurance / 10f) - 5;
         }
 
-        public static int MaxStatValue()
+        /* Beginning of MT Zone
+ * Breton:   STR -2 END +0  INT +2    WIL +2  SPEED +0  AGI -2         * 
+ * High Elf: STR -2 INT +2  WIL +2    AGI +0    END -2  PER +0   SPEED +0   LUCK +0          
+ * Wood Elf: STR -1 INT 0   WIL -1    AGI +2    END -2  PER +0   SPEED +2   LUCK +0          
+ * Dark Elf: STR +0 INT +1  WIL +0    AGI +1    END -2  PER +0   SPEED +0   LUCK +0          
+ * Redguard: STR +2 INT -2  WIL -2    AGI +1    END +0  PER +0   SPEED +1   LUCK +0         
+ * Nord:     STR +2 INT -2  WIL +0    AGI -1    END +2  PER +0   SPEED -1   LUCK +0 
+ * Khajiit:  STR -1 INT +0  WIL -2    AGI +1    END +1  PER +0   SPEED +1   LUCK +0 
+ * Argonian: STR -1 INT +1  WIL +0    AGI +0    END +1  PER +0   SPEED -1   LUCK +0
+ * */
+
+        public static int MinusTwoValue = 80;
+        public static int MinusOneValue = 90;
+        public static int ZeroValue = 100;
+        public static int PlusOneValue = 111;
+        public static int PlusTwoValue = 125;
+        // Strength=0,  Intelligence=1,  Willpower=2,   Agility = 3, Endurance = 4,     Personality = 5,    Speed = 6,      Luck = 7
+        //                  NO SUBTRACTION NEEDED
+        //              Breton = 1,      Redguard = 2,  Nord = 3,    DarkElf = 4,       HighElf = 5,        WoodElf = 6,    Khajiit = 7,    Argonian = 8
+        //                  NEED TO SUBTRACT ONE TO GET INDEX
+
+        public static int[,] RaceMaxStats = new int[8, 8] {
+            { MinusTwoValue, PlusTwoValue, PlusTwoValue,  MinusTwoValue, ZeroValue,     ZeroValue, ZeroValue,    ZeroValue },    // Breton
+            { MinusTwoValue, PlusTwoValue, PlusTwoValue,  ZeroValue    , MinusTwoValue, ZeroValue, ZeroValue,    ZeroValue },    // High Elf
+            { MinusOneValue, ZeroValue,    MinusOneValue, PlusTwoValue , MinusTwoValue, ZeroValue, PlusTwoValue, ZeroValue },    // Wood Elf
+            { ZeroValue,     PlusOneValue, ZeroValue,     PlusOneValue , MinusTwoValue, ZeroValue, ZeroValue,    ZeroValue },    // Dark Elf
+            { PlusTwoValue,  MinusTwoValue,MinusTwoValue, PlusOneValue , ZeroValue,     ZeroValue, PlusOneValue, ZeroValue },    // Redguard
+            { PlusTwoValue,  MinusTwoValue,ZeroValue,     MinusOneValue, PlusTwoValue,  ZeroValue, MinusOneValue,ZeroValue },    // Nord
+            { MinusOneValue, ZeroValue,    MinusTwoValue, PlusOneValue,  PlusOneValue,  ZeroValue, PlusOneValue, ZeroValue },    // Khajiit
+            { MinusOneValue, PlusOneValue, ZeroValue,     ZeroValue,     PlusOneValue,  ZeroValue, MinusOneValue,ZeroValue}      // Argonian
+        };
+
+        public static string[] SkillNames = {"Medical", "Etiquette", "Streetwise", "Jumping", "Orcish", "Harpy", "Giantish", "Dragonish", "Nymph", "Daedric", "Spriggan",
+            "Centaurian", "Impish", "Lockpicking", "Mercantile", "Pickpocket", "Stealth", "Swimming", "Climbing", "Backstabbing",
+            "Dodging", "Running", "Destruction", "Restoration", "Illusion", "Alteration", "Thaumaturgy", "Mysticism", "ShortBlade", "LongBlade",
+            "HandToHand", "Axe", "BluntWeapon", "Archery", "CriticalStrike"};
+
+        public static string[] AttributeNames = { "Strength", "Intelligence", "Willpower", "Agility", "Endurance", "Personality", "Speed", "Luck" };
+
+        public static int MTMaxStatValue(Races race, DFCareer.Stats stat)
+        {
+            return RaceMaxStats[(int)race - 1, (int)stat];
+        }
+
+        public static int MaxStatValue(Races race, DFCareer.Stats stat)
         {
             Func<int> del;
             if (TryGetOverride("MaxStatValue", out del))
                 return del();
             else
-                return 100;
+                return MTMaxStatValue(race, stat);
         }
+
+        public static int MaxStatValue(DFCareer.Stats stat)
+        {
+            return MaxStatValue(GameManager.Instance.PlayerEntity.Race, stat);
+        }
+
+        public static int MaxStatValue()
+        {
+            return MaxStatValue(DFCareer.Stats.Luck);
+        }
+        /* End of MT zone */
 
         public static int BonusPool()
         {
@@ -315,15 +370,12 @@ namespace DaggerfallWorkshop.Game.Formulas
         }
 
         // Calculate how many uses a skill needs before its value will rise.
-        public static int CalculateSkillUsesForAdvancement(int skillValue, int skillAdvancementMultiplier, float careerAdvancementMultiplier, int level)
-        {
-            Func<int, int, float, int, int> del;
-            if (TryGetOverride("CalculateSkillUsesForAdvancement", out del))
-                return del(skillValue, skillAdvancementMultiplier, careerAdvancementMultiplier, level);
-
-            double levelMod = Math.Pow(1.04, level);
-            return (int)Math.Floor((skillValue * skillAdvancementMultiplier * careerAdvancementMultiplier * levelMod * 2 / 5) + 1);
-        }
+        public static int CalculateSkillUsesForAdvancement(int numberOfSkillPointsRemainingToMaxValue, int skillAdvancementMultiplier, float careerAdvancementMultiplier, float statSkillLevelModifier)
+        {       // MT changed - note that now it is hard-coded while in the original version it was moddable 
+            double slowSkillLevelModifier = Math.Pow(1.03, 100 - numberOfSkillPointsRemainingToMaxValue);
+            double fastSkillLevelModifier = Math.Pow(1.5, 5 - numberOfSkillPointsRemainingToMaxValue);
+            return (int)(skillAdvancementMultiplier * careerAdvancementMultiplier * statSkillLevelModifier * (4.25 * slowSkillLevelModifier + 23 * fastSkillLevelModifier)) + 1;
+        } 
 
         // Calculate player level.
         public static int CalculatePlayerLevel(int startingLevelUpSkillsSum, int currentLevelUpSkillsSum)
