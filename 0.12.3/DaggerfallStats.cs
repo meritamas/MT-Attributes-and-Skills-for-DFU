@@ -84,17 +84,16 @@ namespace DaggerfallWorkshop.Game.Entity
         /// <returns>True if all at max.</returns>
         public bool IsAllMax()
         {
-            int max = FormulaHelper.MaxStatValue();
             return (
-                PermanentStrength == max &&
-                PermanentIntelligence == max &&
-                PermanentWillpower == max &&
-                PermanentAgility == max &&
-                PermanentEndurance == max &&
-                PermanentPersonality == max &&
-                PermanentSpeed == max &&
-                PermanentLuck == max);
-        }
+                PermanentStrength == FormulaHelper.MaxStatValue(DFCareer.Stats.Strength) &&
+                PermanentIntelligence == FormulaHelper.MaxStatValue(DFCareer.Stats.Intelligence) &&
+                PermanentWillpower == FormulaHelper.MaxStatValue(DFCareer.Stats.Willpower) &&
+                PermanentAgility == FormulaHelper.MaxStatValue(DFCareer.Stats.Agility) &&
+                PermanentEndurance == FormulaHelper.MaxStatValue(DFCareer.Stats.Endurance) &&
+                PermanentPersonality == FormulaHelper.MaxStatValue(DFCareer.Stats.Personality) &&
+                PermanentSpeed == FormulaHelper.MaxStatValue(DFCareer.Stats.Speed) &&
+                PermanentLuck == FormulaHelper.MaxStatValue(DFCareer.Stats.Luck));
+        }       // MT mod
 
         /// <summary>
         /// Set default value to each stat.
@@ -155,8 +154,8 @@ namespace DaggerfallWorkshop.Game.Entity
         public int GetLiveStatValue(DFCareer.Stats stat)
         {
             int value = GetPermanentStatValue(stat) + mods[(int)stat];
-            int maxValue = FormulaHelper.MaxStatValue() + maxMods[(int)stat];
-
+            int maxValue = FormulaHelper.MaxStatValue(stat) + maxMods[(int)stat];       // MT mod
+            
             // Clamp live stat to 0-maxValue (accounting for any max value mods)
             value = Mathf.Clamp(value, 0, maxValue);
 
