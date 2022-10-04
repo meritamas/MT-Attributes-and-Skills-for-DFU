@@ -237,7 +237,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             int workingValue = workingStats.GetPermanentStatValue(selectedStat);
 
             // Get max working value
-            int maxWorkingValue = FormulaHelper.MaxStatValue();
+            int maxWorkingValue = FormulaHelper.MaxStatValue((DFCareer.Stats)selectedStat);         // MT edit
 
             // Working value cannot rise above maxWorkingValue and bonus cannot fall below zero, unless freeEdit active
             if ((freeEdit && workingValue == maxFreeEditValue) ||

@@ -1352,12 +1352,12 @@ namespace DaggerfallWorkshop.Game.Entity
         /// <summary>
         /// Raise skills if conditions are met.
         /// </summary>
-        public void RaiseSkills()
+        public void RaiseSkills()           // MT changed, note that it now displays a primitive window with information on the progression towards skill increases each time it checkes if any skills need increasing
         {
-            const int youAreNowAMasterOfTextID = 4020;
-
-            if (GameManager.Instance.PlayerDeath.DeathInProgress)
-                return;
+            const int primarySkillBonus = 25;
+            const int majorSkillBonus = 15;
+            const int nonMinorSkillMalus = 13;
+            const int standardSkillAdvancementAtAttributeLevel = 75;
 
             DaggerfallDateTime now = DaggerfallUnity.Instance.WorldTime.Now;
             if ((now.ToClassicDaggerfallTime() - timeOfLastSkillIncreaseCheck) <= 360)
@@ -1365,11 +1365,48 @@ namespace DaggerfallWorkshop.Game.Entity
 
             timeOfLastSkillIncreaseCheck = now.ToClassicDaggerfallTime();
 
+            string textToDisplayInWindow = "";
+
             for (short i = 0; i < skillUses.Length; i++)
             {
                 int skillAdvancementMultiplier = DaggerfallSkills.GetAdvancementMultiplier((DFCareer.Skills)i);
                 float careerAdvancementMultiplier = Career.AdvancementMultiplier;
-                int usesNeededForAdvancement = FormulaHelper.CalculateSkillUsesForAdvancement(skills.GetPermanentSkillValue(i), skillAdvancementMultiplier, careerAdvancementMultiplier, level);
+                bool skillFound = false;
+
+                DFCareer.Stats governingAttribute = DaggerfallSkills.GetPrimaryStat((DFCareer.Skills)i);
+                int maxSkillValue = FormulaHelper.MaxStatValue(Race, governingAttribute);
+                List<DFCareer.Skills> primarySkills = GetPrimarySkills();
+                if (primarySkills.Contains((DFCareer.Skills)i))
+                {
+                    maxSkillValue += primarySkillBonus;
+                    skillFound = true;
+                }
+
+                List<DFCareer.Skills> majorSkills = GetMajorSkills();
+                if (majorSkills.Contains((DFCareer.Skills)i))
+                {
+                    maxSkillValue += majorSkillBonus;
+                    skillFound = true;
+                }
+
+                List<DFCareer.Skills> minorSkills = GetMinorSkills();
+                if ((!minorSkills.Contains((DFCareer.Skills)i) && (!skillFound)))
+                    maxSkillValue -= nonMinorSkillMalus;
+
+                int skillPointsRemainingTillMaxValue = maxSkillValue - skills.GetPermanentSkillValue(i);
+
+                double powerOfTwoToRaiseTo = (stats.GetLiveStatValue(governingAttribute) - standardSkillAdvancementAtAttributeLevel);
+                powerOfTwoToRaiseTo = powerOfTwoToRaiseTo / 50;
+
+                float statSkillAdvancementMultiplier = 1;
+
+
+                if (powerOfTwoToRaiseTo >= 0)
+                    statSkillAdvancementMultiplier = (float)(1 / Math.Pow(2, powerOfTwoToRaiseTo));
+                else
+                    statSkillAdvancementMultiplier = (float)(1 * Math.Pow(2, -powerOfTwoToRaiseTo));
+
+                int usesNeededForAdvancement = FormulaHelper.CalculateSkillUsesForAdvancement(skillPointsRemainingTillMaxValue, skillAdvancementMultiplier, careerAdvancementMultiplier, statSkillAdvancementMultiplier);
                 int reflexesMod = 0x10000 - (((int)reflexes - 2) << 13);
                 int calculatedSkillUses = (skillUses[i] * reflexesMod) >> 16;
 
@@ -1377,34 +1414,25 @@ namespace DaggerfallWorkshop.Game.Entity
                 {
                     skillUses[i] = 0;
 
-                    if (skills.GetPermanentSkillValue(i) < 100 && (skills.GetPermanentSkillValue(i) < 95 || !AlreadyMasteredASkill()))
+                    if (skills.GetPermanentSkillValue(i) < maxSkillValue)
                     {
                         skills.SetPermanentSkillValue(i, (short)(skills.GetPermanentSkillValue(i) + 1));
                         SetSkillRecentlyIncreased(i);
                         SetCurrentLevelUpSkillSum();
                         DaggerfallUI.Instance.PopupMessage(TextManager.Instance.GetLocalizedText("skillImprove").Replace("%s", DaggerfallUnity.Instance.TextProvider.GetSkillName((DFCareer.Skills)i)));
-                        if (skills.GetPermanentSkillValue(i) == 100)
-                        {
-                            List<DFCareer.Skills> primarySkills = GetPrimarySkills();
-                            if (primarySkills.Contains((DFCareer.Skills)i))
-                            {
-                                ITextProvider textProvider = DaggerfallUnity.Instance.TextProvider;
-                                TextFile.Token[] tokens;
-                                tokens = textProvider.GetRSCTokens(youAreNowAMasterOfTextID);
-                                if (tokens != null && tokens.Length > 0)
-                                {
-                                    DaggerfallMessageBox messageBox = new DaggerfallMessageBox(DaggerfallUI.UIManager);
-                                    messageBox.SetTextTokens(tokens);
-                                    messageBox.ClickAnywhereToClose = true;
-                                    messageBox.ParentPanel.BackgroundColor = Color.clear;
-                                    messageBox.Show();
-                                }
-                                DaggerfallUI.Instance.PlayOneShot(SoundClips.ArenaFanfareLevelUp);
-                            }
-                        }
                     }
                 }
+
+                textToDisplayInWindow += FormulaHelper.SkillNames[i] + "(" + FormulaHelper.AttributeNames[(int)governingAttribute] + "): " + skills.GetPermanentSkillValue(i) + "/" + maxSkillValue +
+                    "    Uses: " + calculatedSkillUses + "/" + usesNeededForAdvancement + "   ----   ";
             }
+
+            DaggerfallMessageBox messageBox = new DaggerfallMessageBox(DaggerfallUI.UIManager, null, true);
+
+            messageBox.SetText(textToDisplayInWindow);
+            messageBox.ClickAnywhereToClose = true;
+            messageBox.ParentPanel.BackgroundColor = Color.clear;
+            messageBox.Show();
 
             if (CheckForLevelUp())
                 DaggerfallUI.PostMessage(DaggerfallUIMessages.dfuiOpenCharacterSheetWindow);
